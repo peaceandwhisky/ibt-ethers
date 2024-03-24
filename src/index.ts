@@ -17,7 +17,7 @@ const executorAddress = "0x3f3F5F719a3BE942C8Acd65b3eD51A16C46a76cF"
 const recipientAddress = "0x696600D88559ac1C0E84de6208F3C568Af9e6a48";
 
 const dbt3ContractAddress = "0x13BA675494dE227Bd0976aC3390502795F7E92A0";
-const permit2ContractAddress = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
+// const permit2ContractAddress = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
 const usdcContractAddress = "0x0FA8781a83E46826621b3BC094Ea2A0212e71B23";
 
 const ownerWallet = new ethers.Wallet(ownerPrivateKey!, provider);
@@ -37,8 +37,8 @@ async function executeTransfer() {
   const nonce = ethers.solidityPackedKeccak256(
     ["address", "address", "uint256"],
     [dbt3ContractAddress, ownerAddress, block!.timestamp]
-  )
-  const amount = "1000"
+  ) as BigNumberish;
+  const amount = "1000";
 
   const permit: Interfaces.PermitBatchTransferFrom = {
     permitted: [
@@ -67,13 +67,13 @@ async function executeTransfer() {
   ];
 
   const witnessData: Interfaces.Witness = { recipient: recipientAddress };
-  const witness = ethers.solidityPackedKeccak256(["address"], [witnessData.recipient]);
+  const witness = coder.encode(["address"], [witnessData.recipient]);
 
   const domain = {
-    name: "Permit2",
+    name: "DomainBasedTransferExecutor",
     version: "1",
     chainId: 80001,
-    verifyingContract: permit2ContractAddress
+    verifyingContract: dbt3ContractAddress
   };
 
   const message = {
@@ -103,27 +103,14 @@ async function executeTransfer() {
   };
 
   const ownerSignature = await ownerWallet.signTypedData(domain, senderTypes, permit);
-  console.log("ownerSignature" + ownerSignature);
+  console.log("ownerSignature: " + ownerSignature);
 
   const recipientSignature = await recipientWallet.signTypedData(domain, recipientTypes, message);
-  console.log("recipientSignature" + recipientSignature);
+  console.log("recipientSignature: " + recipientSignature);
 
   const senderOrder: Interfaces.SenderOrder = getSenderOrder(permit, transferDetails, ownerAddress, witness, ownerSignature)
-  console.log("senderOrder" + JSON.stringify(senderOrder, null, 2))
-  console.log(
-    coder.decode(
-      [
-        "tuple(tuple(address token, uint256 amount)[] permitted, uint256 nonce, uint256 deadline)",
-        "tuple(address to, uint256 requestedAmount)[]",
-        "address",
-        "bytes32"
-      ],
-      senderOrder.order
-    )
-  )
 
   const recipientOrder: Interfaces.RecipientOrder = getRecipientOrder(recipientAddress, amount, nonce, recipientSignature)
-  console.log("recipientOrder" + JSON.stringify(recipientOrder, null, 2))
 
   try {
     const tx = await contract.execute(senderOrder, recipientOrder);
@@ -189,6 +176,8 @@ function getRecipientOrder(
   }
   return recipientOrder
 }
+
+// 前提となる条件を一つ一つ確認するための関数を用意していく
 
 // const getMaticBalance = async(address: string) => {
 //   try {
